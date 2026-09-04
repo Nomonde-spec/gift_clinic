@@ -1,0 +1,235 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  PATIENT
+  STAFF
+  ADMIN
+}
+
+enum StockStatus {
+  IN_STOCK
+  LOW_STOCK
+  OUT_OF_STOCK
+}
+
+enum QueueLevel {
+  LOW
+  MODERATE
+  BUSY
+  VERY_BUSY
+  CLOSED
+}
+
+enum NotificationType {
+  LOW_STOCK
+  OUT_OF_STOCK
+  QUEUE_WARNING
+  SYSTEM
+}
+
+model User {
+  id           String        @id @default(uuid())
+  name         String
+  surname      String
+  email        String        @unique
+  passwordHash String
+  role         Role          @default(PATIENT)
+  phone        String?
+  isActive     Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  staffClinics          StaffClinic[]
+  notifications         Notification[]
+  auditLogs             AuditLog[]
+  queueUpdates          QueueStatus[]
+  queueHistories        QueueHistory[]
+  stockHistories        StockHistory[]
+  clinicStocksUpdated   ClinicMedicationStock[]
+
+  @@index([email])
+  @@index([role])
+}
+
+model Clinic {
+  id          String   @id @default(uuid())
+  name        String
+  description String
+  address     String
+  suburb      String
+  city        String
+  province    String
+  phone       String
+  latitude    Float?
+  longitude   Float?
+  openingTime String   @default("07:00")
+  closingTime String   @default("17:00")
+  isOpen      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  staffClinics    StaffClinic[]
+  operatingHours  ClinicOperatingHours[]
+  medicationStock ClinicMedicationStock[]
+  queueStatus     QueueStatus?
+  queueHistories  QueueHistory[]
+  stockHistories  StockHistory[]
+
+  @@index([city, suburb])
+  @@index([isOpen])
+}
+
+model StaffClinic {
+  id        String   @id @default(uuid())
+  staffId   String
+  clinicId  String
+  createdAt DateTime @default(now())
+
+  staff  User   @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@unique([staffId, clinicId])
+  @@index([staffId])
+  @@index([clinicId])
+}
+
+model ClinicOperatingHours {
+  id        String  @id @default(uuid())
+  clinicId  String
+  dayOfWeek String
+  openTime  String  @default("07:00")
+  closeTime String  @default("17:00")
+  isClosed  Boolean @default(false)
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@unique([clinicId, dayOfWeek])
+  @@index([clinicId])
+}
+
+model Medication {
+  id                 String   @id @default(uuid())
+  name               String   @unique
+  description        String
+  category           String
+  unit               String   @default("tablets")
+  lowStockThreshold  Int      @default(20)
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  clinicStocks   ClinicMedicationStock[]
+  stockHistories StockHistory[]
+
+  @@index([name])
+  @@index([category])
+}
+
+model ClinicMedicationStock {
+  id              String      @id @default(uuid())
+  clinicId        String
+  medicationId    String
+  quantity        Int         @default(0)
+  status          StockStatus @default(OUT_OF_STOCK)
+  lastUpdatedById String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  clinic        Clinic     @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  medication    Medication @relation(fields: [medicationId], references: [id], onDelete: Cascade)
+  lastUpdatedBy User?      @relation(fields: [lastUpdatedById], references: [id], onDelete: SetNull)
+
+  @@unique([clinicId, medicationId])
+  @@index([clinicId])
+  @@index([medicationId])
+  @@index([status])
+}
+
+model QueueStatus {
+  id                    String     @id @default(uuid())
+  clinicId              String     @unique
+  peopleWaiting         Int        @default(0)
+  estimatedWaitMinutes  Int        @default(0)
+  openConsultationRooms Int        @default(1)
+  status                QueueLevel @default(LOW)
+  updatedById           String?
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
+
+  clinic    Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  updatedBy User?  @relation(fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@index([clinicId])
+}
+
+model QueueHistory {
+  id                    String     @id @default(uuid())
+  clinicId              String
+  peopleWaiting         Int
+  estimatedWaitMinutes  Int
+  openConsultationRooms Int
+  status                QueueLevel
+  updatedById           String?
+  createdAt             DateTime   @default(now())
+
+  clinic    Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  updatedBy User?  @relation(fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@index([clinicId, createdAt])
+}
+
+model StockHistory {
+  id               String      @id @default(uuid())
+  clinicId         String
+  medicationId     String
+  previousQuantity Int
+  newQuantity      Int
+  previousStatus   StockStatus
+  newStatus        StockStatus
+  updatedById      String?
+  createdAt        DateTime    @default(now())
+
+  clinic     Clinic     @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  medication Medication @relation(fields: [medicationId], references: [id], onDelete: Cascade)
+  updatedBy  User?      @relation(fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@index([clinicId, medicationId, createdAt])
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  type      NotificationType @default(SYSTEM)
+  title     String
+  message   String
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  action    String
+  entity    String
+  entityId  String?
+  details   String?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([action])
+  @@index([entity, entityId])
+}
