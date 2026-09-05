@@ -74,10 +74,10 @@ export const updateQueue = async (req: AuthenticatedRequest, res: Response) => {
     });
 
     // Notification when VERY_BUSY
-    if (status === 'VERY_BUSY') {
+    if (status === 'VERY_BUSY' && req.user?.id) {
       await prisma.notification.create({
         data: {
-          userId: req.user?.id || undefined,
+          userId: req.user.id,
           type: 'QUEUE_WARNING',
           title: 'Queue Very Busy',
           message: `Queue status changed to VERY_BUSY at clinic ${clinicId}`,

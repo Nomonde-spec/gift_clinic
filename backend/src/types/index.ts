@@ -11,6 +11,8 @@ export interface AuthUserPayload {
   role: UserRole;
   name: string;
   surname: string;
+  clinicId?: string;
+  assignedClinicId?: string;
 }
 
 export interface AuthenticatedRequest extends Request {
