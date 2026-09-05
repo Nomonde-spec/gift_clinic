@@ -116,16 +116,20 @@ export default function RegisterPage() {
             <select
               name="role"
               value={formData.role}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, role: e.target.value }))
-              }
+              onChange={(e) => {
+                const nextRole = e.target.value;
+                setFormData((prev) => ({
+                  ...prev,
+                  role: nextRole,
+                  clinicId: nextRole === 'STAFF' ? prev.clinicId : '',
+                }));
+              }}
               className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-teal-500 focus:outline-none"
             >
               <option value="PATIENT">👤 Patient</option>
               <option value="STAFF">🏥 Clinic Staff</option>
-              <option value="ADMIN">👨‍💼 Admin</option>
             </select>
-            {(formData.role === 'STAFF' || formData.role === 'ADMIN') && (
+            {formData.role === 'STAFF' && (
               <div className="mt-3">
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   Select Clinic / Branch
@@ -145,10 +149,12 @@ export default function RegisterPage() {
             )}
           </div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-            Create Patient Account
+            {formData.role === 'STAFF' ? 'Create Staff Account' : 'Create Patient Account'}
           </h1>
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            Sign up to track queues, check medication stock, and receive healthcare alerts.
+            {formData.role === 'STAFF'
+              ? 'Register to manage clinic queue and stock operations for your assigned branch.'
+              : 'Sign up to track queues, check medication stock, and receive healthcare alerts.'}
           </p>
         </div>
 
@@ -274,7 +280,9 @@ export default function RegisterPage() {
           <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 flex items-start gap-2 text-[11px] text-slate-500">
             <ShieldCheck className="w-4 h-4 text-teal-600 shrink-0 mt-0.5" />
             <span>
-              Public registration registers you as a Patient. Staff and Administrator access is managed through health authority portal credentials.
+              {formData.role === 'STAFF'
+                ? 'Staff accounts can be linked to a clinic branch for queue and stock management access.'
+                : 'Public registration creates a patient account. Staff and administrator access is managed through approved clinic credentials.'}
             </span>
           </div>
 
