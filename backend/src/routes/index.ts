@@ -7,6 +7,7 @@ import medicationRoutes from './medication.routes';
 import notificationRoutes from './notification.routes';
 import adminRoutes from './admin.routes';
 import reportRoutes from './report.routes';
+import staffRoutes from './staff.routes';
 
 const router = Router();
 
@@ -17,6 +18,7 @@ router.use('/clinics/:id', stockRoutes);
 router.use('/medications', medicationRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/admin', adminRoutes);
+router.use('/staff', staffRoutes);
 router.use('/reports', reportRoutes);
 
 export default router;

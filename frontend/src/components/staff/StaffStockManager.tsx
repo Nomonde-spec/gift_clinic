@@ -183,110 +183,45 @@ export const StaffStockManager: React.FC<StaffStockManagerProps> = ({
                     ? editedQuantities[item.medicationId]
                     : item.quantity;
                 const isModified = currentEditVal !== item.quantity;
-                const statusConfig = getStockConfig(item.status);
 
                 return (
-                  <tr
-                    key={item.id}
-                    className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors"
-                  >
-                    <td className="px-4 py-3.5">
-                      <div className="font-semibold text-slate-900 dark:text-white">
-                        {item.medication.name}
-                      </div>
-                      <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                        {item.medication.category} • {item.medication.unit}
-                      </div>
+                  <tr key={item.id}>
+                    <td className="px-4 py-3">
+                      <div className="font-semibold">{item.medication.name}</div>
+                      <div className="text-[11px] text-slate-400">{item.medication.category}</div>
                     </td>
-
-                    <td className="px-4 py-3.5 text-slate-500 dark:text-slate-400">
-                      <span className="font-mono">{item.medication.lowStockThreshold}</span> {item.medication.unit}
-                    </td>
-
-                    {/* Stepper + Direct input */}
-                    <td className="px-4 py-3.5">
-                      <div className="flex items-center w-36">
+                    <td className="px-4 py-3">{item.medication.lowStockThreshold} {item.medication.unit}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
                         <button
-                          type="button"
-                          onClick={() => handleStep(item.medicationId, item.quantity, -5)}
-                          className="px-2 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 rounded-l-lg font-bold text-xs"
-                          title="-5"
-                        >
-                          -5
-                        </button>
-                        <button
-                          type="button"
                           onClick={() => handleStep(item.medicationId, item.quantity, -1)}
-                          className="px-2 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 border-l border-slate-200 dark:border-slate-700 font-bold text-xs"
-                          title="-1"
-                        >
-                          -1
-                        </button>
+                          className="px-2 py-1 rounded bg-slate-100 dark:bg-slate-800"
+                        >-</button>
                         <input
                           type="number"
-                          min="0"
                           value={currentEditVal}
-                          onChange={(e) =>
-                            handleQuantityChange(
-                              item.medicationId,
-                              parseInt(e.target.value) || 0
-                            )
-                          }
-                          className="w-full text-center py-1 border-y border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold font-mono text-slate-900 dark:text-white focus:outline-none"
+                          onChange={(e) => handleQuantityChange(item.medicationId, parseInt(e.target.value || '0', 10))}
+                          className="w-20 px-2 py-1 rounded border bg-white dark:bg-slate-900 text-xs"
                         />
                         <button
-                          type="button"
                           onClick={() => handleStep(item.medicationId, item.quantity, 1)}
-                          className="px-2 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 border-r border-slate-200 dark:border-slate-700 font-bold text-xs"
-                          title="+1"
-                        >
-                          +1
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleStep(item.medicationId, item.quantity, 5)}
-                          className="px-2 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 rounded-r-lg font-bold text-xs"
-                          title="+5"
-                        >
-                          +5
-                        </button>
+                          className="px-2 py-1 rounded bg-slate-100 dark:bg-slate-800"
+                        >+</button>
                       </div>
                     </td>
-
-                    <td className="px-4 py-3.5">
-                      <span
-                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-bold text-[11px] border ${statusConfig.color}`}
-                      >
-                        <span>{statusConfig.indicator}</span>
-                        <span>{statusConfig.label}</span>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex px-2 py-1 rounded text-xs font-semibold ${item.status === 'IN_STOCK' ? 'bg-emerald-100 text-emerald-700' : item.status === 'LOW_STOCK' ? 'bg-amber-100 text-amber-700' : 'bg-rose-100 text-rose-700'}`}>
+                        {item.status}
                       </span>
                     </td>
-
-                    <td className="px-4 py-3.5 text-slate-400 dark:text-slate-500 text-[11px]">
-                      {formatTimeAgo(item.updatedAt)}
-                      {item.lastUpdatedBy && (
-                        <div className="text-[10px] text-slate-500">
-                          by {item.lastUpdatedBy.name}
-                        </div>
-                      )}
-                    </td>
-
-                    <td className="px-4 py-3.5 text-right">
+                    <td className="px-4 py-3 text-[12px] text-slate-400">{formatTimeAgo(item.updatedAt)}</td>
+                    <td className="px-4 py-3 text-right">
                       <button
+                        disabled={updatingId === item.medicationId}
                         onClick={() => saveStock(item)}
-                        disabled={updatingId === item.medicationId || !isModified}
-                        className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                          isModified
-                            ? 'bg-sky-600 hover:bg-sky-700 text-white shadow-sm'
-                            : 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed'
-                        }`}
+                        className="px-3 py-1.5 rounded bg-sky-600 text-white text-xs font-semibold"
                       >
-                        {updatingId === item.medicationId ? (
-                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                        ) : (
-                          <Save className="w-3.5 h-3.5" />
-                        )}
-                        <span>Save</span>
+                        {updatingId === item.medicationId ? 'Saving...' : 'Save'}
                       </button>
                     </td>
                   </tr>

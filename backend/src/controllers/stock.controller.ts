@@ -12,7 +12,8 @@ export const getStock = async (req: AuthenticatedRequest, res: Response) => {
   const { search, status, category } = req.query;
 
   try {
-    const result = await getClinicStock(id, {
+    const clinicId = id || (req.params && req.params.clinicId);
+    const result = await getClinicStock(clinicId, {
       search: search as string,
       status: status as any,
       category: category as string,

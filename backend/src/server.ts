@@ -51,6 +51,15 @@ app.use(errorHandler);
 
 // Start server if not running inside test environment
 if (process.env.NODE_ENV !== 'test') {
+  const dbHost = (() => {
+    try {
+      return new URL(config.databaseUrl).host;
+    } catch {
+      return config.databaseUrl || '<not-set>';
+    }
+  })();
+
+  console.log(`[Clinic Server] Using database host: ${dbHost}`);
   app.listen(config.port, () => {
     console.log(`[Clinic Server] Running on port ${config.port} in ${config.nodeEnv} mode`);
     console.log(`[Clinic Server] Health check available at: http://localhost:${config.port}/api/health`);

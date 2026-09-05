@@ -20,8 +20,8 @@ export default function StaffHistoryPage() {
   const fetchHistory = async () => {
     setLoading(true);
     try {
-      const clinicId = user?.staffClinics?.[0]?.clinicId;
-      let targetClinicId = clinicId;
+      const params = new URLSearchParams(window.location.search);
+      let targetClinicId = params.get('clinicId') || user?.staffClinics?.[0]?.clinicId;
 
       if (!targetClinicId) {
         const all = await clinicApi.getClinics({ limit: 1 });

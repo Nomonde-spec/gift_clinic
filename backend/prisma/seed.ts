@@ -7,6 +7,7 @@ async function main() {
   console.log('🌱 Starting comprehensive database seed...');
 
   // 1. Clean existing records in reverse order
+  // NOTE: For safer local development do NOT delete users; only reset assignments and clinic-level data
   await prisma.auditLog.deleteMany();
   await prisma.notification.deleteMany();
   await prisma.stockHistory.deleteMany();
@@ -17,7 +18,8 @@ async function main() {
   await prisma.staffClinic.deleteMany();
   await prisma.medication.deleteMany();
   await prisma.clinic.deleteMany();
-  await prisma.user.deleteMany();
+  // Preserve existing users where possible to avoid losing credentials
+  // await prisma.user.deleteMany();
 
   console.log('🧹 Cleaned existing database records.');
 
@@ -27,8 +29,10 @@ async function main() {
   const patientPasswordHash = await bcrypt.hash('PatientPass123!', 10);
 
   // 3. Create Users
-  const admin = await prisma.user.create({
-    data: {
+  const admin = await prisma.user.upsert({
+    where: { email: 'admin@clinic.gov.za' },
+    update: { isActive: true, name: 'Sipho', surname: 'Dlamini', phone: '+27 11 555 0100' },
+    create: {
       name: 'Sipho',
       surname: 'Dlamini',
       email: 'admin@clinic.gov.za',
@@ -39,8 +43,47 @@ async function main() {
     },
   });
 
-  const staffSoweto = await prisma.user.create({
+  const pretoria = await prisma.clinic.create({
     data: {
+      name: 'Pretoria Central Clinic',
+      description: 'Public clinic serving Pretoria metro with outpatient and chronic care services.',
+      address: '15 Church Square, Pretoria Central',
+      suburb: 'Pretoria Central',
+      city: 'Pretoria',
+      province: 'Gauteng',
+      phone: '+27 12 345 6789',
+      latitude: -25.7479,
+      longitude: 28.2293,
+      openingTime: '07:00',
+      closingTime: '16:30',
+      isOpen: true,
+    },
+  });
+
+  const durban = await prisma.clinic.create({
+    data: {
+      name: 'Durban Central Community Clinic',
+      description: 'Primary care centre serving eThekwini with pharmacy and outpatient services.',
+      address: '88 Victoria Embankment, Durban',
+      suburb: 'Durban Central',
+      city: 'Durban',
+      province: 'KwaZulu-Natal',
+      phone: '+27 31 555 0200',
+      latitude: -29.8587,
+      longitude: 31.0218,
+      openingTime: '07:30',
+      closingTime: '16:00',
+      isOpen: true,
+    },
+  });
+
+  // If these staff users already exist (e.g., from previous runs), upsert to avoid duplicates
+  // Note: earlier we created staffSoweto/staffHillbrow unconditionally; in case of preserved users, ensure assignments below handle existing ids.
+
+  const staffSoweto = await prisma.user.upsert({
+    where: { email: 'staff@soweto.clinic.gov.za' },
+    update: { isActive: true, name: 'Thabo', surname: 'Mokoena', phone: '+27 11 555 0101' },
+    create: {
       name: 'Thabo',
       surname: 'Mokoena',
       email: 'staff@soweto.clinic.gov.za',
@@ -51,8 +94,10 @@ async function main() {
     },
   });
 
-  const staffHillbrow = await prisma.user.create({
-    data: {
+  const staffHillbrow = await prisma.user.upsert({
+    where: { email: 'staff@hillbrow.clinic.gov.za' },
+    update: { isActive: true, name: 'Zanele', surname: 'Khuzwayo', phone: '+27 11 555 0102' },
+    create: {
       name: 'Zanele',
       surname: 'Khuzwayo',
       email: 'staff@hillbrow.clinic.gov.za',
@@ -63,8 +108,10 @@ async function main() {
     },
   });
 
-  const patient = await prisma.user.create({
-    data: {
+  const patient = await prisma.user.upsert({
+    where: { email: 'patient@gmail.com' },
+    update: { isActive: true, name: 'Nomonde', surname: 'Cele', phone: '+27 82 555 0199' },
+    create: {
       name: 'Nomonde',
       surname: 'Cele',
       email: 'patient@gmail.com',
@@ -163,15 +210,17 @@ async function main() {
     },
   });
 
-  const clinics = [soweto, hillbrow, alexandra, mitchellsPlain, khayelitsha];
+  const clinics = [soweto, hillbrow, alexandra, mitchellsPlain, khayelitsha, pretoria, durban];
   console.log(`🏥 Created ${clinics.length} realistic clinics.`);
 
   // 5. Assign Staff to Clinics
+  // Upsert staff assignments so repeated seeds won't duplicate or fail
   await prisma.staffClinic.createMany({
     data: [
       { staffId: staffSoweto.id, clinicId: soweto.id },
       { staffId: staffHillbrow.id, clinicId: hillbrow.id },
     ],
+    skipDuplicates: true,
   });
 
   // 6. Create Operating Hours for all clinics
@@ -322,6 +371,30 @@ async function main() {
           status = 'LOW_STOCK';
         } else {
           qty = 140;
+          status = 'IN_STOCK';
+        }
+      } else if (c.id === pretoria.id) {
+        // Pretoria variations
+        if (med.name === 'Metformin') {
+          qty = 20; // low
+          status = 'LOW_STOCK';
+        } else if (med.name === 'Ibuprofen') {
+          qty = 0;
+          status = 'OUT_OF_STOCK';
+        } else {
+          qty = 120;
+          status = 'IN_STOCK';
+        }
+      } else if (c.id === durban.id) {
+        // Durban variations
+        if (med.name === 'Salbutamol Inhaler') {
+          qty = 5;
+          status = 'LOW_STOCK';
+        } else if (med.name === 'Paracetamol') {
+          qty = 300;
+          status = 'IN_STOCK';
+        } else {
+          qty = 140 + Math.floor(Math.random() * 80);
           status = 'IN_STOCK';
         }
       } else {

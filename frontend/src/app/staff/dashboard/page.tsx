@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '../../../context/AuthContext';
 import { clinicApi, stockApi } from '../../../lib/api';
-import { Clinic, ClinicStockItem } from '../../../types';
+import { Clinic } from '../../../types';
 import { getQueueConfig, formatWaitTime, formatTimeAgo } from '../../../lib/utils';
 import {
   Building2,
@@ -14,17 +15,18 @@ import {
   Pill,
   AlertTriangle,
   AlertCircle,
-  TrendingUp,
   ArrowRight,
   Edit,
   History,
   CheckCircle2,
 } from 'lucide-react';
 
-export default function StaffDashboard() {
-  const { user } = useAuth();
+function StaffDashboardContent() {
+  const { user, activeClinicId, setActiveClinicId } = useAuth();
 
   const [assignedClinic, setAssignedClinic] = useState<Clinic | null>(null);
+  const [accessibleClinics, setAccessibleClinics] = useState<Clinic[]>([]);
+  const [selectedClinicId, setSelectedClinicId] = useState<string | null>(activeClinicId || null);
   const [stockSummary, setStockSummary] = useState<{
     total: number;
     inStock: number;
@@ -36,13 +38,25 @@ export default function StaffDashboard() {
   const fetchStaffData = async () => {
     setLoading(true);
     try {
-      // Find clinic ID assigned to this staff member
-      const clinicId = user?.staffClinics?.[0]?.clinicId;
-      if (clinicId) {
-        const clinicData = await clinicApi.getClinicById(clinicId);
+      // Build accessible clinics list from user assignment or fallback to all clinics
+      if (user?.staffClinics && user.staffClinics.length > 0) {
+        const list = user.staffClinics.map((sc) => sc.clinic).filter(Boolean) as Clinic[];
+        setAccessibleClinics(list);
+        // choose selected id: query param -> preserved selection -> first assigned
+        const initialId = selectedClinicId || (list[0] && list[0].id) || null;
+        if (initialId) setSelectedClinicId(initialId);
+      } else {
+        const all = await clinicApi.getClinics({ limit: 50 });
+        setAccessibleClinics(all.clinics || []);
+        if (!selectedClinicId && all.clinics[0]) setSelectedClinicId(all.clinics[0].id);
+      }
+
+      // If we have a selectedClinicId, load its details
+      if (selectedClinicId) {
+        const clinicData = await clinicApi.getClinicById(selectedClinicId);
         setAssignedClinic(clinicData);
 
-        const stockData = await stockApi.getStock(clinicId);
+        const stockData = await stockApi.getStock(selectedClinicId);
         if (stockData?.summary) {
           setStockSummary({
             total: stockData.summary.total,
@@ -50,14 +64,6 @@ export default function StaffDashboard() {
             lowStock: stockData.summary.lowStockCount,
             outOfStock: stockData.summary.outOfStockCount,
           });
-        }
-      } else {
-        // Fallback: fetch first open clinic for demo staff viewing
-        const allClinics = await clinicApi.getClinics({ limit: 1 });
-        if (allClinics?.clinics?.[0]) {
-          const first = allClinics.clinics[0];
-          const full = await clinicApi.getClinicById(first.id);
-          setAssignedClinic(full);
         }
       }
     } catch (err) {
@@ -67,9 +73,21 @@ export default function StaffDashboard() {
     }
   };
 
+  const search = useSearchParams();
+
+  // respect clinicId query param when present
+  useEffect(() => {
+    const q = search.get('clinicId');
+    if (q) {
+      setSelectedClinicId(q);
+      setActiveClinicId && setActiveClinicId(q);
+    }
+  }, [search, setActiveClinicId]);
+
   useEffect(() => {
     fetchStaffData();
-  }, [user]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, selectedClinicId]);
 
   const queue = assignedClinic?.queueStatus;
   const queueConfig = getQueueConfig(queue?.status);
@@ -92,24 +110,43 @@ export default function StaffDashboard() {
             </strong>{' '}
             ({assignedClinic?.city || 'South Africa'})
           </p>
+          {/* Clinic selector for staff who have access to multiple clinics */}
+          {accessibleClinics.length > 0 && (
+            <div className="mt-3">
+              <label className="block text-[11px] text-slate-400 mb-1">Active Clinic</label>
+              <select
+                value={selectedClinicId || ''}
+                onChange={(e) => {
+                  const id = e.target.value || null;
+                  setSelectedClinicId(id);
+                  setActiveClinicId && setActiveClinicId(id);
+                }}
+                className="px-3 py-2 rounded-xl bg-slate-800 text-white text-sm"
+              >
+                {accessibleClinics.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name} {c.city ? `(${c.city})` : ''}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         {/* Quick Actions */}
         <div className="flex flex-wrap gap-2.5">
           <Link
-            href="/staff/queue"
+            href={assignedClinic ? `/staff/queue?clinicId=${assignedClinic.id}` : '/staff/queue'}
             className="px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold shadow-sm transition-colors flex items-center gap-1.5"
           >
             <Edit className="w-3.5 h-3.5" /> Update Queue
           </Link>
           <Link
-            href="/staff/stock"
+            href={assignedClinic ? `/staff/stock?clinicId=${assignedClinic.id}` : '/staff/stock'}
             className="px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold shadow-sm transition-colors flex items-center gap-1.5"
           >
             <Pill className="w-3.5 h-3.5" /> Update Stock
           </Link>
           <Link
-            href="/staff/history"
+            href={assignedClinic ? `/staff/history?clinicId=${assignedClinic.id}` : '/staff/history'}
             className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors flex items-center gap-1.5"
           >
             <History className="w-3.5 h-3.5" /> View History
@@ -218,5 +255,13 @@ export default function StaffDashboard() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function StaffDashboard() {
+  return (
+    <Suspense fallback={<div className="max-w-7xl mx-auto px-4 py-12 text-center text-xs text-slate-400">Loading staff dashboard...</div>}>
+      <StaffDashboardContent />
+    </Suspense>
   );
 }

@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, activeClinicId } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -47,7 +47,7 @@ export const Navbar: React.FC = () => {
   return (
     <nav className="sticky top-0 z-40 w-full border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
+        <div className="flex flex-wrap items-center justify-between h-16">
           {/* Logo */}
           <div className="flex items-center gap-3">
             <Link href="/" className="flex items-center gap-2.5">
@@ -81,16 +81,16 @@ export const Navbar: React.FC = () => {
               {/* Staff Portal Links */}
               {user?.role === 'STAFF' && (
                 <>
-                  <Link href="/staff/dashboard" className={navLinkClass('/staff/dashboard')}>
+                  <Link href={activeClinicId ? `/staff/dashboard?clinicId=${activeClinicId}` : '/staff/dashboard'} className={navLinkClass('/staff/dashboard')}>
                     Staff Overview
                   </Link>
-                  <Link href="/staff/queue" className={navLinkClass('/staff/queue')}>
+                  <Link href={activeClinicId ? `/staff/queue?clinicId=${activeClinicId}` : '/staff/queue'} className={navLinkClass('/staff/queue')}>
                     Queue Manager
                   </Link>
-                  <Link href="/staff/stock" className={navLinkClass('/staff/stock')}>
+                  <Link href={activeClinicId ? `/staff/stock?clinicId=${activeClinicId}` : '/staff/stock'} className={navLinkClass('/staff/stock')}>
                     Stock Inventory
                   </Link>
-                  <Link href="/staff/history" className={navLinkClass('/staff/history')}>
+                  <Link href={activeClinicId ? `/staff/history?clinicId=${activeClinicId}` : '/staff/history'} className={navLinkClass('/staff/history')}>
                     History & Trends
                   </Link>
                   <Link href="/clinics" className={navLinkClass('/clinics')}>
@@ -187,7 +187,7 @@ export const Navbar: React.FC = () => {
             )}
 
             {/* Mobile menu toggle */}
-            <div className="flex md:hidden ml-1">
+            <div className="flex md:hidden ml-1 z-50">
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                 className="p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
@@ -202,7 +202,7 @@ export const Navbar: React.FC = () => {
 
       {/* Mobile Drawer */}
       {mobileMenuOpen && (
-        <div className="md:hidden border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 pt-2 pb-4 space-y-1">
+        <div className="md:hidden fixed top-16 left-0 right-0 z-40 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 pt-2 pb-4 space-y-1 shadow-md">
           {(!user || user.role === 'PATIENT') && (
             <>
               <Link

@@ -6,6 +6,8 @@ import {
   getQueueHistory,
   getQueueAnalytics,
 } from '../services/queue.service';
+import prisma from '../services/prisma';
+import { logAudit } from '../services/audit.service';
 import { sendSuccess, sendError } from '../utils/response';
 
 export const getQueue = async (req: AuthenticatedRequest, res: Response) => {
@@ -22,21 +24,69 @@ export const getQueue = async (req: AuthenticatedRequest, res: Response) => {
 };
 
 export const updateQueue = async (req: AuthenticatedRequest, res: Response) => {
-  const { id } = req.params;
+  const clinicId =
+    (req.params && (req.params.id || req.params.clinicId)) ||
+    req.user?.assignedClinicId ||
+    req.user?.clinicId;
   const { peopleWaiting, estimatedWaitMinutes, openConsultationRooms, status } = req.body;
 
+  if (!clinicId) {
+    return sendError(res, 'Clinic ID is required', 400);
+  }
+
   try {
-    const result = await updateClinicQueue({
-      clinicId: id,
-      peopleWaiting,
-      estimatedWaitMinutes,
-      openConsultationRooms,
-      status,
-      updatedById: req.user?.id,
-      ipAddress: req.ip,
+    // Find existing queue status for the clinic
+    const queue = await prisma.queueStatus.findFirst({ where: { clinicId } });
+    if (!queue) return sendError(res, 'Queue not found for clinic', 404);
+
+    // Update queue status
+    const updated = await prisma.queueStatus.update({
+      where: { id: queue.id },
+      data: {
+        peopleWaiting,
+        estimatedWaitMinutes,
+        openConsultationRooms,
+        status,
+        updatedById: req.user?.id,
+      },
     });
 
-    return sendSuccess(res, result, 'Queue status updated successfully');
+    // Record history
+    await prisma.queueHistory.create({
+      data: {
+        clinicId: queue.clinicId,
+        peopleWaiting,
+        estimatedWaitMinutes,
+        openConsultationRooms,
+        status,
+        updatedById: req.user?.id,
+      },
+    });
+
+    // Audit log
+    await logAudit({
+      userId: req.user?.id,
+      action: 'STAFF_UPDATED_QUEUE',
+      entity: 'QueueStatus',
+      entityId: queue.id,
+      ipAddress: req.ip,
+      details: JSON.stringify({ peopleWaiting, estimatedWaitMinutes, openConsultationRooms, status }),
+    });
+
+    // Notification when VERY_BUSY
+    if (status === 'VERY_BUSY') {
+      await prisma.notification.create({
+        data: {
+          userId: req.user?.id || undefined,
+          type: 'QUEUE_WARNING',
+          title: 'Queue Very Busy',
+          message: `Queue status changed to VERY_BUSY at clinic ${clinicId}`,
+          isRead: false,
+        },
+      });
+    }
+
+    return sendSuccess(res, updated, 'Queue status updated successfully');
   } catch (error: any) {
     return sendError(res, error.message || 'Failed to update queue status', 400);
   }

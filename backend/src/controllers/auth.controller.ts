@@ -5,18 +5,51 @@ import { hashPassword, comparePassword } from '../utils/password';
 import { signJwt } from '../utils/jwt';
 import { sendSuccess, sendError } from '../utils/response';
 import { logAudit } from '../services/audit.service';
+import crypto from 'crypto';
+import { URL } from 'url';
 
 export const register = async (req: AuthenticatedRequest, res: Response) => {
-  const { name, surname, email, password, phone } = req.body;
+  const { name, surname, email, password, phone, role: requestedRole, clinicId, clinicIds } = req.body;
 
   const existing = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
   if (existing) {
-    return sendError(res, 'An account with this email already exists', 409);
+    // Log existing user id for debugging (do not log sensitive data)
+    console.warn(`Register attempt with existing email: ${email.toLowerCase()} (userId: ${existing.id})`);
+    return sendError(res, 'An account with this email already exists. Try signing in or use Forgot Password to recover access.', 409);
   }
 
   const passwordHash = await hashPassword(password);
 
-  // Strictly assign PATIENT role for public registration
+  // Determine role to assign. Default to PATIENT. Allow STAFF via registration but never allow ADMIN by public registration.
+  let roleToAssign: string = 'PATIENT';
+  if (requestedRole) {
+    const r = String(requestedRole).toUpperCase();
+    if (r === 'STAFF') {
+      roleToAssign = 'STAFF';
+    } else {
+      // Any attempt to set ADMIN or invalid values falls back to PATIENT
+      roleToAssign = 'PATIENT';
+    }
+  }
+
+  // Determine clinics to assign (if any). For public STAFF registration, default to Soweto clinic when none provided.
+  let clinicsToAssign: string[] = [];
+  if (Array.isArray(clinicIds) && clinicIds.length > 0) clinicsToAssign = clinicIds;
+  else if (clinicId) clinicsToAssign = [clinicId];
+
+  if (roleToAssign === 'STAFF' && clinicsToAssign.length === 0) {
+    // try to find a Soweto clinic as a sensible default
+    const soweto = await prisma.clinic.findFirst({
+      where: {
+        OR: [
+          { name: { contains: 'soweto', mode: 'insensitive' } },
+          { suburb: { contains: 'soweto', mode: 'insensitive' } },
+        ],
+      },
+    });
+    if (soweto) clinicsToAssign = [soweto.id];
+  }
+
   const user = await prisma.user.create({
     data: {
       name,
@@ -24,8 +57,13 @@ export const register = async (req: AuthenticatedRequest, res: Response) => {
       email: email.toLowerCase(),
       passwordHash,
       phone,
-      role: 'PATIENT',
+      role: roleToAssign as any,
       isActive: true,
+      ...(roleToAssign === 'STAFF' && clinicsToAssign.length > 0 && {
+        staffClinics: {
+          create: clinicsToAssign.map((cId: string) => ({ clinicId: cId })),
+        },
+      }),
     },
     select: {
       id: true,
@@ -35,6 +73,9 @@ export const register = async (req: AuthenticatedRequest, res: Response) => {
       role: true,
       phone: true,
       createdAt: true,
+      staffClinics: {
+        include: { clinic: { select: { id: true, name: true, city: true, suburb: true } } },
+      },
     },
   });
 
@@ -60,6 +101,63 @@ export const register = async (req: AuthenticatedRequest, res: Response) => {
     'Registration successful. Welcome to the Public Clinic Tracker.',
     201
   );
+};
+
+export const forgotPassword = async (req: AuthenticatedRequest, res: Response) => {
+  const { email } = req.body;
+  if (!email) return sendError(res, 'Email is required', 400);
+
+  const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+
+  // Always return success for security reasons (avoid account enumeration)
+  if (!user) {
+    return sendSuccess(res, null, 'If an account with that email exists, a reset link has been sent');
+  }
+
+  const token = crypto.randomBytes(32).toString('hex');
+  const expiry = new Date(Date.now() + 1000 * 60 * 60); // 1 hour
+
+  await prisma.user.update({ where: { id: user.id }, data: { resetToken: token, resetTokenExpiry: expiry } });
+
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+  const resetUrl = `${frontendUrl}/reset?token=${token}&email=${encodeURIComponent(user.email)}`;
+
+  // Ideally send email via SMTP. For now, log the reset link for development.
+  console.log(`Password reset link for ${user.email}: ${resetUrl}`);
+
+  await logAudit({
+    userId: user.id,
+    action: 'PASSWORD_RESET_REQUEST',
+    entity: 'User',
+    entityId: user.id,
+    ipAddress: req.ip,
+  });
+
+  return sendSuccess(res, null, 'If an account with that email exists, a reset link has been sent');
+};
+
+export const resetPassword = async (req: AuthenticatedRequest, res: Response) => {
+  const { email, token, newPassword } = req.body;
+  if (!email || !token || !newPassword) return sendError(res, 'Missing required fields', 400);
+
+  const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+  if (!user || !user.resetToken || !user.resetTokenExpiry) return sendError(res, 'Invalid or expired reset token', 400);
+
+  if (user.resetToken !== token) return sendError(res, 'Invalid or expired reset token', 400);
+  if (new Date() > user.resetTokenExpiry) return sendError(res, 'Reset token has expired', 400);
+
+  const passwordHash = await hashPassword(newPassword);
+  await prisma.user.update({ where: { id: user.id }, data: { passwordHash, resetToken: null, resetTokenExpiry: null } });
+
+  await logAudit({
+    userId: user.id,
+    action: 'PASSWORD_RESET_COMPLETE',
+    entity: 'User',
+    entityId: user.id,
+    ipAddress: req.ip,
+  });
+
+  return sendSuccess(res, null, 'Password has been reset successfully');
 };
 
 export const login = async (req: AuthenticatedRequest, res: Response) => {

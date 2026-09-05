@@ -106,6 +106,16 @@ export default function AdminStaffPage() {
     });
   };
 
+  // Open modal and default to Soweto clinics if available
+  const openCreateModal = () => {
+    const soweto = clinics.find((c) => c.name.toLowerCase().includes('soweto') || c.suburb?.toLowerCase() === 'soweto');
+    setFormData((prev) => ({
+      ...prev,
+      clinicIds: soweto ? [soweto.id] : [],
+    }));
+    setIsModalOpen(true);
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -126,7 +136,7 @@ export default function AdminStaffPage() {
         </div>
 
         <button
-          onClick={() => setIsModalOpen(true)}
+          onClick={openCreateModal}
           className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs shadow-sm transition-colors"
         >
           <UserPlus className="w-4 h-4" /> Provision New Staff Account
@@ -324,7 +334,27 @@ export default function AdminStaffPage() {
                 <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   Assign to Clinic Facilities
                 </label>
+                {/* Primary clinic dropdown for quick branch assignment */}
+                <div className="mb-2">
+                  <label className="block text-[11px] text-slate-500 mb-1">Primary Clinic</label>
+                  <select
+                    value={formData.clinicIds[0] || ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (!val) return setFormData((p) => ({ ...p, clinicIds: [] }));
+                      setFormData((p) => ({ ...p, clinicIds: [val] }));
+                    }}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                  >
+                    <option value="">Select primary clinic (branch)</option>
+                    {clinics.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name} ({c.city})</option>
+                    ))}
+                  </select>
+                </div>
+
                 <div className="space-y-1.5 max-h-36 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 bg-slate-50 dark:bg-slate-800/40">
+                  <div className="text-[11px] text-slate-400 mb-1">(Select additional clinics if this staff should access multiple branches)</div>
                   {clinics.map((c) => (
                     <label
                       key={c.id}

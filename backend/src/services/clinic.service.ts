@@ -8,6 +8,7 @@ interface ClinicFilterParams {
   isOpen?: string;
   queueStatus?: string;
   medicationAvailable?: string;
+  medication?: string;
   sortBy?: string;
   page?: number;
   limit?: number;
@@ -47,6 +48,28 @@ export const listClinics = async (filters: ClinicFilterParams) => {
     };
   }
 
+  // Filter by medication name if provided
+  if (filters.medication) {
+    // Accept either medication id (preferred) or medication name.
+    const medVal = filters.medication;
+    const uuidLike = /^[-a-fA-F0-9]{36,}$/.test(medVal);
+    if (uuidLike) {
+      whereClause.medicationStock = {
+        some: {
+          medicationId: medVal,
+        },
+      };
+    } else {
+      whereClause.medicationStock = {
+        some: {
+          medication: {
+            name: { contains: medVal, mode: 'insensitive' },
+          },
+        },
+      };
+    }
+  }
+
   let orderBy: any = { name: 'asc' };
   if (filters.sortBy === 'nameDesc') {
     orderBy = { name: 'desc' };
@@ -82,6 +105,14 @@ export const listClinics = async (filters: ClinicFilterParams) => {
       },
     }),
   ]);
+
+  // Debugging: log incoming filters and how many records matched
+  try {
+    console.log('[clinic.service] listClinics filters:', JSON.stringify(filters));
+    console.log('[clinic.service] matched clinics total:', total);
+  } catch {
+    // ignore logging errors
+  }
 
   // Compute medication rollups for each clinic card
   const formattedClinics = clinics.map((c) => {

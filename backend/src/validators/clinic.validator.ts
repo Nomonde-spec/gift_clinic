@@ -24,6 +24,7 @@ export const clinicQuerySchema = z.object({
   isOpen: z.enum(['true', 'false']).optional(),
   queueStatus: z.enum(['LOW', 'MODERATE', 'BUSY', 'VERY_BUSY', 'CLOSED']).optional(),
   medicationAvailable: z.enum(['all', 'has_stock', 'low_stock', 'out_of_stock']).optional(),
+	medication: z.string().optional(),
   sortBy: z.enum(['waitAsc', 'waitDesc', 'nameAsc', 'nameDesc', 'createdDesc']).optional(),
   page: z.string().regex(/^\d+$/).transform(Number).optional(),
   limit: z.string().regex(/^\d+$/).transform(Number).optional(),

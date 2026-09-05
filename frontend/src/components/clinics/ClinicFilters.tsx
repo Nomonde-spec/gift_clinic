@@ -1,7 +1,8 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Search, Filter, ArrowDownAZ, Clock, RotateCcw } from 'lucide-react';
+import { medicationApi } from '../../lib/api';
 
 interface ClinicFiltersProps {
   search: string;
@@ -14,6 +15,8 @@ interface ClinicFiltersProps {
   setQueueStatus: (val: string) => void;
   sortBy: string;
   setSortBy: (val: string) => void;
+  medication: string;
+  setMedication: (val: string) => void;
   onReset: () => void;
 }
 
@@ -28,8 +31,27 @@ export const ClinicFilters: React.FC<ClinicFiltersProps> = ({
   setQueueStatus,
   sortBy,
   setSortBy,
+  medication,
+  setMedication,
   onReset,
 }) => {
+  const [medOptions, setMedOptions] = useState<{ id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const meds = await medicationApi.getMedications({ isActive: true });
+        if (!mounted) return;
+        setMedOptions(meds.map((m) => ({ id: m.id, name: m.name })));
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
   return (
     <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-5 shadow-sm space-y-4">
       {/* Search Input Bar */}
@@ -115,6 +137,24 @@ export const ClinicFilters: React.FC<ClinicFiltersProps> = ({
             <option value="createdDesc">Newest</option>
           </select>
         </div>
+
+      {/* Medication Filter (dropdown) */}
+      <div className="col-span-2 sm:col-span-4">
+        <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">Medication</label>
+        <div className="relative">
+          <select
+            value={medication}
+            onChange={(e) => setMedication(e.target.value)}
+            className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs focus:ring-2 focus:ring-sky-500 focus:outline-none"
+          >
+            <option value="">All Medications</option>
+            {medOptions.map((m) => (
+              <option key={m.id} value={m.id}>{m.name}</option>
+            ))}
+          </select>
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">▼</div>
+        </div>
+      </div>
       </div>
 
       {/* Quick Chips & Reset */}

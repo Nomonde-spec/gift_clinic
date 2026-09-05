@@ -1,10 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../context/AuthContext';
-import { UserPlus, AlertCircle, ShieldCheck } from 'lucide-react';
+import { clinicApi } from '../../../lib/api';
+import { Clinic } from '../../../types';
+import { UserPlus, AlertCircle, ShieldCheck, Eye, EyeOff } from 'lucide-react';
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -14,10 +16,16 @@ export default function RegisterPage() {
     phone: '',
     password: '',
     confirmPassword: '',
+    role: 'PATIENT',
+    clinicId: '',
   });
+
+  const [clinics, setClinics] = useState<Clinic[]>([]);
 
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const { register } = useAuth();
   const router = useRouter();
@@ -28,6 +36,26 @@ export default function RegisterPage() {
       [e.target.name]: e.target.value,
     }));
   };
+
+  const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const data = await clinicApi.getClinics({ limit: 200 });
+        if (mounted) setClinics(data.clinics || []);
+      } catch (err) {
+        console.warn('Failed to load clinics for registration select', err);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,18 +74,28 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      await register({
+      // If registering as STAFF, allow selecting a clinicId from query param or default to soweto server-side
+      const payload: any = {
         name: formData.name,
         surname: formData.surname,
         email: formData.email,
         password: formData.password,
         phone: formData.phone || undefined,
-      });
+        role: formData.role,
+      };
+      // include selected clinicId for STAFF/ADMIN registrations
+      if (formData.clinicId) payload.clinicId = formData.clinicId;
+      await register(payload);
       router.push('/dashboard');
     } catch (err: any) {
-      setError(
-        err.response?.data?.message || 'Registration failed. An account with this email may already exist.'
-      );
+      const msg = err.response?.data?.message;
+      setError(msg || 'Registration failed. An account with this email may already exist.');
+      // If account exists, show quick actions
+      if (err.response?.status === 409) {
+        // show helpful hint with actions
+        // We keep the error text but also log to console for debugging
+        console.info('Registration conflict for email:', formData.email);
+      }
     } finally {
       setLoading(false);
     }
@@ -69,6 +107,42 @@ export default function RegisterPage() {
         <div className="text-center">
           <div className="w-12 h-12 rounded-2xl bg-teal-600 text-white flex items-center justify-center mx-auto shadow-md shadow-teal-600/20 mb-3">
             <UserPlus className="w-6 h-6" />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+              Register as
+            </label>
+            <select
+              name="role"
+              value={formData.role}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, role: e.target.value }))
+              }
+              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-teal-500 focus:outline-none"
+            >
+              <option value="PATIENT">👤 Patient</option>
+              <option value="STAFF">🏥 Clinic Staff</option>
+              <option value="ADMIN">👨‍💼 Admin</option>
+            </select>
+            {(formData.role === 'STAFF' || formData.role === 'ADMIN') && (
+              <div className="mt-3">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Select Clinic / Branch
+                </label>
+                <select
+                  name="clinicId"
+                  value={formData.clinicId}
+                  onChange={handleSelectChange}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                >
+                  <option value="">(Optional) Choose clinic to assign</option>
+                  {clinics.map((c) => (
+                    <option key={c.id} value={c.id}>{`${c.name} (${c.city || c.suburb || ''})`}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
             Create Patient Account
@@ -151,29 +225,49 @@ export default function RegisterPage() {
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 Password
               </label>
-              <input
-                type="password"
-                name="password"
-                required
-                value={formData.password}
-                onChange={handleChange}
-                placeholder="••••••••"
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-teal-500 focus:outline-none"
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  name="password"
+                  required
+                  value={formData.password}
+                  onChange={handleChange}
+                  placeholder="••••••••"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((s) => !s)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 Confirm
               </label>
-              <input
-                type="password"
-                name="confirmPassword"
-                required
-                value={formData.confirmPassword}
-                onChange={handleChange}
-                placeholder="••••••••"
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-teal-500 focus:outline-none"
-              />
+              <div className="relative">
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  name="confirmPassword"
+                  required
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
+                  placeholder="••••••••"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword((s) => !s)}
+                  aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700"
+                >
+                  {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
             </div>
           </div>
 

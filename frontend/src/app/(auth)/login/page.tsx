@@ -140,6 +140,9 @@ function LoginFormContent() {
             placeholder="••••••••"
             className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-sky-500 focus:outline-none"
           />
+          <div className="text-right mt-2">
+            <Link href="/forgot" className="text-xs text-sky-600 dark:text-sky-400 hover:underline">Forgot password?</Link>
+          </div>
         </div>
 
         <button

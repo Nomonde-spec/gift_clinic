@@ -90,7 +90,13 @@ export const requireStaffClinicAccess = async (
 
   const clinicId = req.params.id || req.params.clinicId;
   if (!clinicId) {
-    return sendError(res, 'Clinic ID is required in URL parameters', 400);
+    // If clinicId not provided in params, check if user has an assignment and allow access to their assigned clinic
+    const assignment = await prisma.staffClinic.findFirst({ where: { staffId: req.user.id } });
+    if (!assignment) {
+      return sendError(res, 'Clinic ID is required in URL parameters', 400);
+    }
+    // Attach implied clinicId to params for downstream handlers
+    req.params.clinicId = assignment.clinicId;
   }
 
   try {

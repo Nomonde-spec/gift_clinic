@@ -3,13 +3,13 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '../../../context/AuthContext';
-import { clinicApi, stockApi } from '../../../lib/api';
+import { clinicApi, stockApi, staffApi } from '../../../lib/api';
 import { Clinic, ClinicStockItem } from '../../../types';
 import { StaffStockManager } from '../../../components/staff/StaffStockManager';
 import { Pill, ArrowLeft, RefreshCw, Building2 } from 'lucide-react';
 
 export default function StaffStockPage() {
-  const { user } = useAuth();
+  const { user, refreshUser, activeClinicId } = useAuth();
 
   const [clinic, setClinic] = useState<Clinic | null>(null);
   const [stock, setStock] = useState<ClinicStockItem[]>([]);
@@ -18,21 +18,47 @@ export default function StaffStockPage() {
   const fetchStockData = async () => {
     setLoading(true);
     try {
-      const clinicId = user?.staffClinics?.[0]?.clinicId;
-      let targetClinicId = clinicId;
-
-      if (!targetClinicId) {
-        const all = await clinicApi.getClinics({ limit: 1 });
-        if (all.clinics[0]) targetClinicId = all.clinics[0].id;
-      }
-
-      if (targetClinicId) {
-        const [c, s] = await Promise.all([
-          clinicApi.getClinicById(targetClinicId),
-          stockApi.getStock(targetClinicId),
-        ]);
+      const search = new URLSearchParams(window.location.search);
+      const qClinicId = search.get('clinicId') || activeClinicId;
+      if (qClinicId) {
+        const s = await stockApi.getStock(qClinicId);
+        const c = await clinicApi.getClinicById(qClinicId);
         setClinic(c);
         setStock(s.stock || []);
+        setLoading(false);
+        return;
+      }
+      try {
+        const c = await staffApi.getMyClinic();
+        if (c) {
+          const s = await stockApi.getStock(c.id);
+          setClinic(c);
+          setStock(s.stock || []);
+          return;
+        }
+      } catch (err) {
+        console.warn('staffApi.getMyClinic failed, falling back to local user assignment', err);
+      }
+
+      try {
+        const clinicId = user?.staffClinics?.[0]?.clinicId;
+        let targetClinicId = clinicId;
+
+        if (!targetClinicId) {
+          const all = await clinicApi.getClinics({ limit: 1 });
+          if (all.clinics[0]) targetClinicId = all.clinics[0].id;
+        }
+
+        if (targetClinicId) {
+          const [c, s] = await Promise.all([
+            clinicApi.getClinicById(targetClinicId),
+            stockApi.getStock(targetClinicId),
+          ]);
+          setClinic(c);
+          setStock(s.stock || []);
+        }
+      } catch (err) {
+        console.error(err);
       }
     } catch (err) {
       console.error(err);
@@ -44,6 +70,15 @@ export default function StaffStockPage() {
   useEffect(() => {
     fetchStockData();
   }, [user]);
+
+  const handleRefreshAssignment = async () => {
+    try {
+      await refreshUser();
+      await fetchStockData();
+    } catch (err) {
+      console.error('Failed to refresh assignment', err);
+    }
+  };
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
@@ -79,8 +114,15 @@ export default function StaffStockPage() {
       ) : clinic ? (
         <StaffStockManager clinicId={clinic.id} initialStock={stock} />
       ) : (
-        <div className="p-8 text-center text-xs text-slate-500">
-          No clinic found to manage.
+        <div className="p-8 text-center text-xs text-slate-500 space-y-3">
+          <div>No clinic found to manage.</div>
+          <div>If you are running locally, ensure demo data is seeded and your staff account is assigned to a clinic.</div>
+          <div className="text-[11px] text-slate-400">Local seed command: <code>cd backend && npm run prisma:seed</code></div>
+          <div className="flex items-center justify-center gap-2">
+            <button onClick={handleRefreshAssignment} className="px-3 py-1.5 rounded bg-sky-600 text-white text-xs">Refresh Assignment</button>
+            <button onClick={() => window.location.href = '/staff/dashboard'} className="px-3 py-1.5 rounded border text-xs">Back to Dashboard</button>
+          </div>
+          <div className="text-[11px] text-slate-400">Demo staff credentials: <strong>staff@soweto.clinic.gov.za</strong> / <strong>StaffPass123!</strong></div>
         </div>
       )}
     </div>

@@ -63,6 +63,7 @@ export const authApi = {
     email: string;
     password: string;
     phone?: string;
+    role?: string;
   }) => {
     const res = await apiClient.post<{ success: boolean; data: { user: User; token: string }; message?: string }>(
       '/auth/register',
@@ -74,6 +75,16 @@ export const authApi = {
   getMe: async () => {
     const res = await apiClient.get<{ success: boolean; data: User }>('/auth/me');
     return res.data.data;
+  },
+
+  forgotPassword: async (payload: { email: string }) => {
+    const res = await apiClient.post<{ success: boolean; message?: string }>('/auth/forgot', payload);
+    return res.data;
+  },
+
+  resetPassword: async (payload: { email: string; token: string; newPassword: string }) => {
+    const res = await apiClient.post<{ success: boolean; message?: string }>('/auth/reset', payload);
+    return res.data;
   },
 
   updateProfile: async (payload: {
@@ -222,9 +233,16 @@ export const medicationApi = {
     const res = await apiClient.put<{ success: boolean; data: Medication }>(`/medications/${id}`, payload);
     return res.data.data;
   },
-
   toggleMedication: async (id: string) => {
     const res = await apiClient.patch<{ success: boolean; data: Medication }>(`/medications/${id}/toggle`);
+    return res.data.data;
+  },
+};
+
+// Staff-specific API helpers
+export const staffApi = {
+  getMyClinic: async () => {
+    const res = await apiClient.get<{ success: boolean; data: any }>('/staff/clinic');
     return res.data.data;
   },
 };

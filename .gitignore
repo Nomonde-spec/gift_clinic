@@ -34,3 +34,18 @@ Thumbs.db
 # Prisma
 prisma/*.db
 prisma/*.db-journal
+
+# VS / editor generated files
+.vs/
+.vscode/
+
+# Node / build artifacts
+node_modules/
+.next/
+dist/
+build/
+
+# env files
+.env
+.env.local
+.env.*

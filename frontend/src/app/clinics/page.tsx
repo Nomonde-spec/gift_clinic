@@ -21,6 +21,7 @@ function ClinicsContent() {
   const [isOpen, setIsOpen] = useState('');
   const [queueStatus, setQueueStatus] = useState('');
   const [sortBy, setSortBy] = useState('waitAsc');
+  const [medication, setMedication] = useState('');
 
   const fetchClinics = useCallback(async () => {
     setLoading(true);
@@ -31,6 +32,7 @@ function ClinicsContent() {
         city: city || undefined,
         isOpen: isOpen || undefined,
         queueStatus: queueStatus || undefined,
+        medication: medication || undefined,
         sortBy,
       });
       setClinics(data.clinics || []);
@@ -39,7 +41,7 @@ function ClinicsContent() {
     } finally {
       setLoading(false);
     }
-  }, [search, city, isOpen, queueStatus, sortBy]);
+  }, [search, city, isOpen, queueStatus, sortBy, medication]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -54,6 +56,7 @@ function ClinicsContent() {
     setIsOpen('');
     setQueueStatus('');
     setSortBy('waitAsc');
+    setMedication('');
   };
 
   return (
@@ -92,6 +95,8 @@ function ClinicsContent() {
         setQueueStatus={setQueueStatus}
         sortBy={sortBy}
         setSortBy={setSortBy}
+        medication={medication}
+        setMedication={setMedication}
         onReset={handleReset}
       />
 
